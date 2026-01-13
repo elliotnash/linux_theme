@@ -1,11 +1,11 @@
 use std::convert::Infallible;
-use std::io::Read;
-use std::{fs::File, path::Path};
+use std::io::{Read, Write};
+use std::path::Path;
 
 use cssparser::*;
 
 use lightningcss::error::PrinterErrorKind;
-use lightningcss::printer::Printer;
+use lightningcss::printer::{Printer, PrinterOptions};
 use lightningcss::rules::CssRule;
 use lightningcss::stylesheet::{ParserOptions, StyleSheet};
 use lightningcss::traits::AtRuleParser;
@@ -13,6 +13,7 @@ use lightningcss::traits::ToCss;
 use lightningcss::values::ident::Ident;
 use lightningcss::visit_types;
 use lightningcss::visitor::{Visit, VisitTypes, Visitor};
+use lightningcss::bundler::{Bundler, FileProvider};
 
 #[derive(Debug)]
 pub enum Error {
@@ -20,15 +21,25 @@ pub enum Error {
     ParserError(String),
 }
 
-pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Vec<DefineColor>, Error> {
-    let mut local_config = File::open(path).map_err(|e| Error::IoError(e))?;
-    let mut string = String::new();
+pub fn from_file(path: &Path) -> Result<Vec<DefineColor>, Error> {
+    let fs = FileProvider::new();
+    let mut bundler = Bundler::new(
+        &fs,
+        None,
+        ParserOptions {
+            error_recovery: true,
+            ..Default::default()
+        },
+    );
+    let result = match bundler.bundle(path) {
+        Ok(stylesheet) => {
+            let css = stylesheet.to_css(PrinterOptions::default()).unwrap();
+            from_str(&css.code)
+        }
+        Err(e) => return Err(Error::ParserError(e.to_string())),
+    };
 
-    local_config
-        .read_to_string(&mut string)
-        .map_err(|e| Error::IoError(e))?;
-
-    from_str(&string)
+    result
 }
 pub fn from_str(css: &str) -> Result<Vec<DefineColor>, Error> {
     let mut defined_colors = vec![];
@@ -91,14 +102,12 @@ impl<'i> AtRuleParser<'i> for ColorParser {
         let mut ident = None;
         let mut color = None;
         for count in 1..3 {
-            println!("Hiii2");
           if let Ok(_) = input_parser.try_parse(|input| {
              if count == 1 {
-                println!("Hiii3");
                 ident = Some(input.expect_ident_cloned());
             } else if count == 2 {
+                println!("parsing, input: {:?}", &input.current_line());
                 color = Some(cssparser::Color::parse(input));
-                println!("Hiii4");
             };
 
             Result::<(), ()>::Ok(())
@@ -109,7 +118,7 @@ impl<'i> AtRuleParser<'i> for ColorParser {
           }
         }
 
-
+        println!("ident: {:?}, color: {:?}", &ident, &color);
 
 
         match color.unwrap() {
@@ -127,7 +136,6 @@ impl<'i> AtRuleParser<'i> for ColorParser {
         start: &ParserState,
         _: &ParserOptions<'_, 'i>,
     ) -> Result<Self::AtRule, ()> {
-        println!("Hiiii");
         match prelude {
             Prelude::DefineColor(ident, color) => Ok(AtRule::DefineColor(DefineColor {
                 ident: ident.to_string(),
@@ -156,7 +164,6 @@ impl<'a, 'i> Visitor<'i, AtRule> for DefineColorCollector<'i> {
     const TYPES: VisitTypes = visit_types!(RULES);
 
     fn visit_rule(&mut self, rule: &mut CssRule<'i, AtRule>) -> Result<(), Self::Error> {
-        println!("Hiii");
         if let CssRule::Custom(AtRule::DefineColor(color)) = rule {
             self.colors.push(color.clone());
         }
