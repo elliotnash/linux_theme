@@ -2,13 +2,12 @@
 
 # 🦀🦀 linux_theme 🎨🎨
 
-> [!NOTE]  
-> This crate is a republished version of the original `rusty_themy` by natalia-asteria. The original repository has been deleted, so this crate has been republished with some changes under the name `linux_theme`.
-
-
 *Obtain the current color theme in your system!*
 
 </div>
+
+> [!NOTE]  
+> This crate is a republished version of the original `rusty_themy` by natalia-asteria. The original repository has been deleted, so this crate has been republished with some changes under the name `linux_theme`.
 
 ```sh
 $ cargo add linux_theme
