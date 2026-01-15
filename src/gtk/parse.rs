@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::path::Path;
 
 use cssparser::*;
+use cssparser_color::{Color, RgbaLegacy, DefaultColorParser, parse_color_with};
 
 use lightningcss::error::PrinterErrorKind;
 use lightningcss::printer::{Printer, PrinterOptions};
@@ -27,7 +28,7 @@ pub enum Error {
 }
 
 pub fn from_file(path: &Path) -> Result<Vec<DefineColor>, Error> {
-    let mode = dark_light::detect();
+    let mode = dark_light::detect().unwrap_or(dark_light::Mode::Unspecified);
 
     let fs = FileProvider::new();
     let mut bundler = Bundler::new(
@@ -201,6 +202,47 @@ fn resolve_color_arg(arg: &ColorArg, color_map: &std::collections::HashMap<Strin
     }
 }
 
+/// Convert a cssparser_color::Color to RgbaLegacy for manipulation.
+/// Handles various color formats by converting them to RGBA.
+fn color_to_rgba(color: &Color) -> Result<RgbaLegacy, Error> {
+    match color {
+        Color::Rgba(rgba) => Ok(*rgba),
+        Color::CurrentColor => Err(Error::ParserError("Cannot convert currentColor to RGBA".to_string())),
+        Color::Hsl(hsl) => {
+            use cssparser_color::hsl_to_rgb;
+            let h = hsl.hue.unwrap_or(0.0);
+            let s = hsl.saturation.unwrap_or(0.0);
+            let l = hsl.lightness.unwrap_or(0.0);
+            let alpha = hsl.alpha.unwrap_or(1.0);
+            let (r, g, b) = hsl_to_rgb(h, s, l);
+            Ok(RgbaLegacy {
+                red: (r * 255.0) as u8,
+                green: (g * 255.0) as u8,
+                blue: (b * 255.0) as u8,
+                alpha: alpha,
+            })
+        }
+        Color::Hwb(hwb) => {
+            use cssparser_color::hwb_to_rgb;
+            let h = hwb.hue.unwrap_or(0.0);
+            let w = hwb.whiteness.unwrap_or(0.0);
+            let b = hwb.blackness.unwrap_or(0.0);
+            let alpha = hwb.alpha.unwrap_or(1.0);
+            let (r, g, b_val) = hwb_to_rgb(h, w, b);
+            Ok(RgbaLegacy {
+                red: (r * 255.0) as u8,
+                green: (g * 255.0) as u8,
+                blue: (b_val * 255.0) as u8,
+                alpha: alpha,
+            })
+        }
+        // For other color formats (Lab, Lch, Oklab, Oklch, ColorFunction),
+        // we'll need to convert them. For now, return an error or convert via a simpler path.
+        // In practice, most CSS colors will be RGBA or HSL, so this should cover most cases.
+        _ => Err(Error::ParserError(format!("Unsupported color format for conversion: {:?}", color))),
+    }
+}
+
 fn evaluate_color_function(
     func: &ColorFunction,
     color_map: &std::collections::HashMap<String, Color>,
@@ -232,9 +274,9 @@ fn evaluate_color_function(
 
 fn shade_color(color: &Color, factor: f32) -> Color {
     // Convert to RGBA, adjust lightness, convert back
-    let rgba = match color {
-        Color::RGBA(rgba) => *rgba,
-        Color::CurrentColor => return Color::CurrentColor, // Can't shade currentColor
+    let rgba = match color_to_rgba(color) {
+        Ok(rgba) => rgba,
+        Err(_) => return color.clone(), // Can't shade, return original
     };
     let r = rgba.red as f32 / 255.0;
     let g = rgba.green as f32 / 255.0;
@@ -249,36 +291,36 @@ fn shade_color(color: &Color, factor: f32) -> Color {
     // Convert back to RGB
     let (r_new, g_new, b_new) = hsl_to_rgb(h, s, new_l);
     
-    Color::RGBA(RGBA::new(
-        (r_new * 255.0) as u8,
-        (g_new * 255.0) as u8,
-        (b_new * 255.0) as u8,
-        rgba.alpha,
-    ))
+    Color::Rgba(RgbaLegacy {
+        red: (r_new * 255.0) as u8,
+        green: (g_new * 255.0) as u8,
+        blue: (b_new * 255.0) as u8,
+        alpha: rgba.alpha,
+    })
 }
 
 fn alpha_color(color: &Color, factor: f32) -> Color {
-    let rgba = match color {
-        Color::RGBA(rgba) => *rgba,
-        Color::CurrentColor => return Color::CurrentColor, // Can't alpha currentColor
+    let rgba = match color_to_rgba(color) {
+        Ok(rgba) => rgba,
+        Err(_) => return color.clone(), // Can't alpha, return original
     };
-    let new_alpha = ((rgba.alpha as f32 / 255.0) * factor).min(1.0).max(0.0);
-    Color::RGBA(RGBA::new(
-        rgba.red,
-        rgba.green,
-        rgba.blue,
-        (new_alpha * 255.0) as u8,
-    ))
+    let new_alpha = (rgba.alpha * factor).min(1.0).max(0.0);
+    Color::Rgba(RgbaLegacy {
+        red: rgba.red,
+        green: rgba.green,
+        blue: rgba.blue,
+        alpha: new_alpha,
+    })
 }
 
 fn mix_colors(color1: &Color, color2: &Color, factor: f32) -> Color {
-    let rgba1 = match color1 {
-        Color::RGBA(rgba) => *rgba,
-        Color::CurrentColor => return Color::CurrentColor, // Can't mix currentColor
+    let rgba1 = match color_to_rgba(color1) {
+        Ok(rgba) => rgba,
+        Err(_) => return color1.clone(), // Can't mix, return first color
     };
-    let rgba2 = match color2 {
-        Color::RGBA(rgba) => *rgba,
-        Color::CurrentColor => return Color::CurrentColor, // Can't mix currentColor
+    let rgba2 = match color_to_rgba(color2) {
+        Ok(rgba) => rgba,
+        Err(_) => return color1.clone(), // Can't mix, return first color
     };
     
     // Interpolate: factor 0 = color1, 1 = color2
@@ -287,12 +329,12 @@ fn mix_colors(color1: &Color, color2: &Color, factor: f32) -> Color {
     let b = rgba1.blue as f32 * (1.0 - factor) + rgba2.blue as f32 * factor;
     let a = rgba1.alpha as f32 * (1.0 - factor) + rgba2.alpha as f32 * factor;
     
-    Color::RGBA(RGBA::new(
-        r as u8,
-        g as u8,
-        b as u8,
-        a as u8,
-    ))
+    Color::Rgba(RgbaLegacy {
+        red: r as u8,
+        green: g as u8,
+        blue: b as u8,
+        alpha: a,
+    })
 }
 
 fn rgb_to_hsl(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
@@ -351,9 +393,13 @@ fn parse_color_arg<'i, 't>(input: &mut Parser<'i, 't>) -> Result<ColorArg, Parse
         }
         Ok(_) => {
             input.reset(&state);
-            match cssparser::Color::parse(input) {
+            let mut parser = DefaultColorParser;
+            match parse_color_with(&mut parser, input) {
                 Ok(color) => Ok(ColorArg::Color(color)),
-                Err(e) => Err(e.into()),
+                Err(_) => {
+                    input.reset(&state);
+                    Err(input.new_error(BasicParseErrorKind::UnexpectedToken(Token::Ident("color".into()))))
+                }
             }
         }
         Err(e) => {
@@ -467,17 +513,19 @@ impl<'i> AtRuleParser<'i> for ColorParser {
             Ok(_) => {
                 // Not a reference or function, reset and parse as a regular color
                 input_parser.reset(&state);
-                match cssparser::Color::parse(input_parser) {
+                let mut parser = DefaultColorParser;
+                match parse_color_with(&mut parser, input_parser) {
                     Ok(color) => ColorOrReference::Color(color),
-                    Err(e) => return Err(e.into()),
+                    Err(_) => return Err(input_parser.new_error(BasicParseErrorKind::UnexpectedToken(Token::Ident("color".into())))),
                 }
             }
             Err(_) => {
                 // Error getting next token, try parsing as color
                 input_parser.reset(&state);
-                match cssparser::Color::parse(input_parser) {
+                let mut parser = DefaultColorParser;
+                match parse_color_with(&mut parser, input_parser) {
                     Ok(color) => ColorOrReference::Color(color),
-                    Err(e) => return Err(e.into()),
+                    Err(_) => return Err(input_parser.new_error(BasicParseErrorKind::UnexpectedToken(Token::Ident("color".into())))),
                 }
             }
         };
@@ -496,6 +544,7 @@ impl<'i> AtRuleParser<'i> for ColorParser {
         prelude: Self::Prelude,
         start: &ParserState,
         _: &ParserOptions<'_, 'i>,
+        _: bool,
     ) -> Result<Self::AtRule, ()> {
         match prelude {
             Prelude::DefineColor(ident, color_or_ref) => {
@@ -524,7 +573,9 @@ impl<'i, V: Visitor<'i, AtRule>> Visit<'i, AtRule, V> for AtRule {
 impl<'a, 'i> Visitor<'i, AtRule> for DefineColorCollector<'i> {
     type Error = Infallible;
 
-    const TYPES: VisitTypes = visit_types!(RULES);
+    fn visit_types(&self) -> VisitTypes {
+        visit_types!(RULES)
+    }
 
     fn visit_rule(&mut self, rule: &mut CssRule<'i, AtRule>) -> Result<(), Self::Error> {
         if let CssRule::Custom(AtRule::DefineColor(color)) = rule {
@@ -538,7 +589,9 @@ impl<'a, 'i> Visitor<'i, AtRule> for DefineColorCollector<'i> {
         &mut self,
         color: &mut lightningcss::values::color::CssColor,
     ) -> Result<(), Self::Error> {
-        *color = color.to_lab();
+        if let Ok(lab_color) = color.to_lab() {
+            *color = lab_color;
+        }
         Ok(())
     }
 }
@@ -553,7 +606,7 @@ impl ToCss for AtRule {
 }
 #[cfg(test)]
 pub mod test {
-    use cssparser::{Color, RGBA};
+    use cssparser_color::{Color, RgbaLegacy};
 
     use super::from_str;
     #[test]
@@ -566,7 +619,7 @@ pub mod test {
         );
         assert_eq!(
             css.first().unwrap().color,
-            Color::RGBA(RGBA {
+            Color::Rgba(RgbaLegacy {
                 red: 233,
                 green: 70,
                 blue: 134,
@@ -580,7 +633,7 @@ pub mod test {
         );
         assert_eq!(
             css.last().unwrap().color,
-            Color::RGBA(RGBA {
+            Color::Rgba(RgbaLegacy {
                 red: 191,
                 green: 16,
                 blue: 76,
@@ -618,7 +671,7 @@ pub mod test {
         
         // The derived color should have the same color value as the base color
         assert_eq!(derived.color, base.color);
-        assert_eq!(derived.color, Color::RGBA(RGBA {
+        assert_eq!(derived.color, Color::Rgba(RgbaLegacy {
             red: 255,
             green: 0,
             blue: 0,
@@ -645,19 +698,19 @@ pub mod test {
         // Verify lighter is lighter than base
         let base = colors.iter().find(|c| c.ident == "base_color").unwrap();
         let lighter = colors.iter().find(|c| c.ident == "lighter_color").unwrap();
-        if let (Color::RGBA(base_rgba), Color::RGBA(lighter_rgba)) = (&base.color, &lighter.color) {
+        if let (Color::Rgba(base_rgba), Color::Rgba(lighter_rgba)) = (&base.color, &lighter.color) {
             assert!(lighter_rgba.red > base_rgba.red || lighter_rgba.green > base_rgba.green || lighter_rgba.blue > base_rgba.blue);
         }
         
         // Verify darker is darker than base
         let darker = colors.iter().find(|c| c.ident == "darker_color").unwrap();
-        if let (Color::RGBA(base_rgba), Color::RGBA(darker_rgba)) = (&base.color, &darker.color) {
+        if let (Color::Rgba(base_rgba), Color::Rgba(darker_rgba)) = (&base.color, &darker.color) {
             assert!(darker_rgba.red < base_rgba.red || darker_rgba.green < base_rgba.green || darker_rgba.blue < base_rgba.blue);
         }
         
         // Verify alpha is applied
         let alpha = colors.iter().find(|c| c.ident == "alpha_color").unwrap();
-        if let (Color::RGBA(base_rgba), Color::RGBA(alpha_rgba)) = (&base.color, &alpha.color) {
+        if let (Color::Rgba(base_rgba), Color::Rgba(alpha_rgba)) = (&base.color, &alpha.color) {
             assert_eq!(alpha_rgba.alpha, base_rgba.alpha / 2);
         }
     }

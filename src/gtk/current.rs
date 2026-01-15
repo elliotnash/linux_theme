@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use cssparser::Color;
+use cssparser_color::Color;
 
 use crate::gtk::parse::{DARK_CSS, DARK_DERIVE_CSS, LIGHT_CSS, LIGHT_DERIVE_CSS, PALETTE_CSS};
 
@@ -66,7 +66,7 @@ fn get_theme_on_folder(
     themes: &mut HashMap<String, Color>,
     errors: &mut Vec<Error>,
 ) {
-    let mode = dark_light::detect();
+    let mode = dark_light::detect().unwrap_or(dark_light::Mode::Unspecified);
 
     let default_css = if mode == dark_light::Mode::Dark {
         PALETTE_CSS.to_owned() + DARK_CSS + DARK_DERIVE_CSS
