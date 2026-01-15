@@ -3,11 +3,9 @@ use std::path::PathBuf;
 
 use cssparser::Color;
 
-use super::parse::{from_file, from_str, DefineColor};
+use crate::gtk::parse::{DARK_CSS, DARK_DERIVE_CSS, LIGHT_CSS, LIGHT_DERIVE_CSS, PALETTE_CSS};
 
-const PALETTE_CSS: &str = include_str!("css/palette.css");
-const LIGHT_CSS: &str = include_str!("css/light.css");
-const DARK_CSS: &str = include_str!("css/dark.css");
+use super::parse::{from_file, from_str, DefineColor};
 
 #[cfg(all(unix, not(target_os = "macos")))]
 /**
@@ -70,10 +68,10 @@ fn get_theme_on_folder(
 ) {
     let mode = dark_light::detect();
 
-    let default_css = PALETTE_CSS.to_owned() + if mode == dark_light::Mode::Dark {
-        DARK_CSS
+    let default_css = if mode == dark_light::Mode::Dark {
+        PALETTE_CSS.to_owned() + DARK_CSS + DARK_DERIVE_CSS
     } else {
-        LIGHT_CSS
+        PALETTE_CSS.to_owned() + LIGHT_CSS + LIGHT_DERIVE_CSS
     };
 
     push(from_str(&default_css), themes, errors);

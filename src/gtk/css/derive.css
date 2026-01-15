@@ -1,0 +1,7 @@
+/* Colors derived from their matching bg color
+ * Not quite the same as libadwaita but "close enough" */
+@define-color accent_color mix(@accent_bg_color, white, 60%);
+@define-color destructive_color mix(@destructive_bg_color, white, 60%);
+@define-color success_color mix(@success_bg_color, white, 60%);
+@define-color warning_color mix(@warning_bg_color, white, 60%);
+@define-color error_color mix(@error_bg_color, white, 60%);

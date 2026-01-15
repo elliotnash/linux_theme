@@ -14,6 +14,12 @@ use lightningcss::visit_types;
 use lightningcss::visitor::{Visit, VisitTypes, Visitor};
 use lightningcss::bundler::{Bundler, FileProvider};
 
+pub const PALETTE_CSS: &str = include_str!("css/palette.css");
+pub const LIGHT_CSS: &str = include_str!("css/light.css");
+pub const LIGHT_DERIVE_CSS: &str = include_str!("css/light-derive.css");
+pub const DARK_CSS: &str = include_str!("css/dark.css");
+pub const DARK_DERIVE_CSS: &str = include_str!("css/dark-derive.css");
+
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
@@ -21,6 +27,8 @@ pub enum Error {
 }
 
 pub fn from_file(path: &Path) -> Result<Vec<DefineColor>, Error> {
+    let mode = dark_light::detect();
+
     let fs = FileProvider::new();
     let mut bundler = Bundler::new(
         &fs,
@@ -32,8 +40,12 @@ pub fn from_file(path: &Path) -> Result<Vec<DefineColor>, Error> {
     );
     let result = match bundler.bundle(path) {
         Ok(stylesheet) => {
-            let css = stylesheet.to_css(PrinterOptions::default()).unwrap();
-            from_str(&css.code)
+            let css = stylesheet.to_css(PrinterOptions::default()).unwrap().code + if mode == dark_light::Mode::Dark {
+                DARK_DERIVE_CSS
+            } else {
+                LIGHT_DERIVE_CSS
+            };
+            from_str(&css)
         }
         Err(e) => return Err(Error::ParserError(e.to_string())),
     };
