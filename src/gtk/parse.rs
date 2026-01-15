@@ -28,7 +28,7 @@ pub enum Error {
 }
 
 pub fn from_file(path: &Path) -> Result<Vec<DefineColor>, Error> {
-    let mode = dark_light::detect().unwrap_or(dark_light::Mode::Unspecified);
+    let mode = dark_light::detect();
 
     let fs = FileProvider::new();
     let mut bundler = Bundler::new(

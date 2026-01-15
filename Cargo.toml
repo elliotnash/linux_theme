@@ -31,25 +31,6 @@ categories = [
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/elliotnash/linux_theme"
 
-[dependencies.cssparser]
-version = "0.33.0"
-optional = true
-
-[dependencies.cssparser-color]
-version = "0.1.0"
-optional = true
-
-[dependencies.dark-light]
-# See https://github.com/rust-dark-light/dark-light/issues/73 for issues with 2.0.0
-git = "https://github.com/rust-dark-light/dark-light.git"
-rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961"
-optional = true
-
-[dependencies.lightningcss]
-version = "1.0.0-alpha.68"
-features = ["visitor", "bundler"]
-optional = true
-
 [features]
 default = ["gtk"]
 gtk = [
@@ -58,3 +39,10 @@ gtk = [
     "cssparser-color",
     "dark-light",
 ]
+
+[dependencies]
+cssparser = { version = "0.33.0", optional = true }
+cssparser-color = { version = "0.1.0", optional = true }
+# See https://github.com/rust-dark-light/dark-light/issues/73 for issues with 2.0.0
+dark-light = { version = "1.0.0", optional = true }
+lightningcss = { version = "1.0.0-alpha.68", optional = true, features = ["visitor", "bundler"] }

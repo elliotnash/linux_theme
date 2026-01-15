@@ -16,8 +16,6 @@ use super::parse::{from_file, from_str, DefineColor};
 pub fn current() -> (HashMap<String, Color>, Vec<Error>) {
     use std::env;
 
-    
-
     let (mut map, mut error) = if let Ok(name) = std::env::var("GTK_THEME") {
         get_theme(&name)
     } else {
@@ -66,7 +64,7 @@ fn get_theme_on_folder(
     themes: &mut HashMap<String, Color>,
     errors: &mut Vec<Error>,
 ) {
-    let mode = dark_light::detect().unwrap_or(dark_light::Mode::Unspecified);
+    let mode = dark_light::detect();
 
     let default_css = if mode == dark_light::Mode::Dark {
         PALETTE_CSS.to_owned() + DARK_CSS + DARK_DERIVE_CSS
