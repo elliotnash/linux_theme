@@ -1,0 +1,85 @@
+/* GTK NAMED COLORS
+ * ----------------
+ * use responsibly!
+ *
+ * These are the colors apps are can override. We define the defaults here and
+ * define variables for them in _colors.scss
+ *
+ * Using too many transparent colors in GTK3 can be performance heavy
+ * and cause issues with some elements since we use a lot of color mixes.
+ * Let's use static colors on more common elements */
+
+/* The main accent color and the matching text value */
+@define-color accent_bg_color @blue_3;
+@define-color accent_fg_color white;
+
+/* destructive-action buttons */
+@define-color destructive_bg_color @red_4;
+@define-color destructive_fg_color white;
+
+/* Levelbars, entries, labels and infobars. These don't need text colors */
+@define-color success_bg_color @green_5;
+@define-color success_fg_color white;
+
+@define-color warning_bg_color #c01c28;
+@define-color warning_fg_color rgba(0,0,0,0.8);
+
+@define-color error_bg_color @red_4;
+@define-color error_fg_color white;
+
+/* Colors derived from their matching bg color
+ * Not quite the same as libadwaita but "close enough" */
+@define-color accent_color mix(@accent_bg_color, white, 60%);
+@define-color destructive_color mix(@destructive_bg_color, white, 60%);
+@define-color success_color mix(@success_bg_color, white, 60%);
+@define-color warning_color mix(@warning_bg_color, white, 60%);
+@define-color error_color mix(@error_bg_color, white, 60%);
+
+/* Window */
+@define-color window_bg_color #222226;
+@define-color window_fg_color white;
+
+/* Views - e.g. text view or tree view */
+@define-color view_bg_color #1d1d20;
+@define-color view_fg_color white;
+
+/* Header bar, search bar, tab bar */
+@define-color headerbar_bg_color #2e2e32;
+@define-color headerbar_fg_color white;
+@define-color headerbar_border_color white;
+@define-color headerbar_backdrop_color @window_bg_color;
+@define-color headerbar_shade_color rgba(0,0,6,0.36);
+@define-color headerbar_darker_shade_color rgba(0,0,12,0.9);
+
+/* Split pane views */
+@define-color sidebar_bg_color #2e2e32;
+@define-color sidebar_fg_color white;
+@define-color sidebar_backdrop_color #28282c;
+@define-color sidebar_shade_color rgba(0,0,6,0.25);
+@define-color sidebar_border_color rgba(0,0,6,0.36);
+
+/* Cards, boxed lists */
+@define-color card_bg_color rgba(255,255,255,0.08);
+@define-color card_fg_color white;
+@define-color card_shade_color rgba(0,0,6,0.36);
+
+/* Dialogs */
+@define-color dialog_bg_color #36363a;
+@define-color dialog_fg_color white;
+
+/* Popovers */
+@define-color popover_bg_color #36363a;
+@define-color popover_fg_color white;
+@define-color popover_shade_color rgba(0,0,6,0.25);
+
+/* Thumbnails */
+@define-color thumbnail_bg_color #39393d;
+@define-color thumbnail_fg_color white;
+
+/* Miscellaneous */
+@define-color shade_color rgba(0,0,6,0.25);
+@define-color scrollbar_outline_color rgba(0,0,12,0.95);
+
+/* XFCE */
+@define-color panel_bg_color black;
+@define-color panel_fg_color white;
