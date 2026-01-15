@@ -1,17 +1,22 @@
 <div align="center">
 
-# 🦀🦀 Rusty Themy 🎨🎨
+# 🦀🦀 linux_theme 🎨🎨
+
+> [!NOTE]  
+> This crate is a republished version of the original `rusty_themy` by natalia-asteria. The original repository has been deleted, so this crate has been republished with some changes under the name `linux_theme`.
+
+
 *Obtain the current color theme in your system!*
 
 </div>
 
 ```sh
-$ cargo add rusty_themy
+$ cargo add linux_theme
 ```
 ## Getting the current theme on Linux
 It's easy! Just enable the `gtk` feature and use 
 ```rs
-rusty_themy::gtk::current::current()
+linux_theme::gtk::current::current()
 ```
 You can see the example here!
 ```sh

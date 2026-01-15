@@ -11,9 +11,12 @@
 
 [package]
 edition = "2021"
-name = "rusty_themy"
+name = "linux_theme"
 version = "0.1.0"
-authors = ["Natalia Asteria <fortressnordlys@outlook.com>"]
+authors = [
+    "Natalia Asteria <fortressnordlys@outlook.com>",
+    "Elliot Nash <en@elliotnash.org>",
+]
 description = "🦀🦀 Obtain the current color theme in your system! 🎨🎨"
 readme = "README.md"
 keywords = [
@@ -26,7 +29,7 @@ categories = [
     "graphics",
 ]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/natalia-asteria/rusty_themy"
+repository = "https://github.com/elliotnash/linux_theme"
 
 [dependencies.cssparser]
 version = "0.29.6"
