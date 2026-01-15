@@ -363,6 +363,33 @@ fn parse_color_arg<'i, 't>(input: &mut Parser<'i, 't>) -> Result<ColorArg, Parse
     }
 }
 
+/// Parse a number factor that can be either a percentage (e.g., 83%) or a decimal (e.g., 0.83)
+/// Returns a value between 0.0 and 1.0
+fn parse_percentage_or_number<'i, 't>(input: &mut Parser<'i, 't>) -> Result<f32, ParseError<'i, Infallible>> {
+    let state = input.state();
+    match input.next() {
+        Ok(&Token::Percentage { unit_value, .. }) => {
+            // Percentage is already a value between 0 and 1 in cssparser
+            Ok(unit_value)
+        }
+        Ok(&Token::Number { value, .. }) => {
+            Ok(value)
+        }
+        Ok(_) => {
+            input.reset(&state);
+            // Try parsing as a number (handles cases like 0.83)
+            let num = input.expect_number()?;
+            Ok(num)
+        }
+        Err(_) => {
+            input.reset(&state);
+            // Try parsing as a number
+            let num = input.expect_number()?;
+            Ok(num)
+        }
+    }
+}
+
 fn parse_color_function<'i, 't>(
     input_parser: &mut Parser<'i, 't>,
     func_name: &CowRcStr<'i>,
@@ -382,23 +409,23 @@ fn parse_color_function<'i, 't>(
         } else if func_lower == "shade" {
             let arg = parse_color_arg(input)?;
             input.expect_comma()?;
-            let factor = input.expect_number()?;
+            let factor = parse_percentage_or_number(input)?;
             input.expect_exhausted()?;
-            Ok(ColorOrReference::Function(ColorFunction::Shade(arg, factor as f32)))
+            Ok(ColorOrReference::Function(ColorFunction::Shade(arg, factor)))
         } else if func_lower == "alpha" {
             let arg = parse_color_arg(input)?;
             input.expect_comma()?;
-            let factor = input.expect_number()?;
+            let factor = parse_percentage_or_number(input)?;
             input.expect_exhausted()?;
-            Ok(ColorOrReference::Function(ColorFunction::Alpha(arg, factor as f32)))
+            Ok(ColorOrReference::Function(ColorFunction::Alpha(arg, factor)))
         } else if func_lower == "mix" {
             let arg1 = parse_color_arg(input)?;
             input.expect_comma()?;
             let arg2 = parse_color_arg(input)?;
             input.expect_comma()?;
-            let factor = input.expect_number()?;
+            let factor = parse_percentage_or_number(input)?;
             input.expect_exhausted()?;
-            Ok(ColorOrReference::Function(ColorFunction::Mix(arg1, arg2, factor as f32)))
+            Ok(ColorOrReference::Function(ColorFunction::Mix(arg1, arg2, factor)))
         } else {
             Err(input.new_error(BasicParseErrorKind::UnexpectedToken(Token::Ident(func_name.to_string().into()))))
         }
@@ -656,5 +683,37 @@ pub mod test {
         
         // unfocused_insensitive_color should reference insensitive_bg_color
         assert_eq!(unfocused.color, insensitive.color);
+    }
+    
+    #[test]
+    pub fn test_percentage_parsing() {
+        // Test that percentages work in mix, shade, and alpha functions
+        let css = r#"
+            @define-color base_color #808080;
+            @define-color mixed_percent mix(@base_color, #000000, 50%);
+            @define-color mixed_decimal mix(@base_color, #000000, 0.5);
+            @define-color shaded_percent shade(@base_color, 83%);
+            @define-color shaded_decimal shade(@base_color, 0.83);
+            @define-color alpha_percent alpha(@base_color, 50%);
+            @define-color alpha_decimal alpha(@base_color, 0.5);
+        "#;
+        
+        let colors = from_str(css).unwrap();
+        
+        // All colors should be parsed successfully
+        assert_eq!(colors.len(), 7);
+        
+        // Verify that percentage and decimal versions produce the same result
+        let mixed_percent = colors.iter().find(|c| c.ident == "mixed_percent").unwrap();
+        let mixed_decimal = colors.iter().find(|c| c.ident == "mixed_decimal").unwrap();
+        assert_eq!(mixed_percent.color, mixed_decimal.color, "mix() with 50% should equal mix() with 0.5");
+        
+        let shaded_percent = colors.iter().find(|c| c.ident == "shaded_percent").unwrap();
+        let shaded_decimal = colors.iter().find(|c| c.ident == "shaded_decimal").unwrap();
+        assert_eq!(shaded_percent.color, shaded_decimal.color, "shade() with 83% should equal shade() with 0.83");
+        
+        let alpha_percent = colors.iter().find(|c| c.ident == "alpha_percent").unwrap();
+        let alpha_decimal = colors.iter().find(|c| c.ident == "alpha_decimal").unwrap();
+        assert_eq!(alpha_percent.color, alpha_decimal.color, "alpha() with 50% should equal alpha() with 0.5");
     }
 }
